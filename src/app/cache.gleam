@@ -13,6 +13,7 @@ import gleam/int
 import gleam/io
 import gleam/option
 import gleam/otp/actor
+import gleam/time/timestamp.{type Timestamp}
 
 import app/ratelimit.{type Ratelimit}
 
@@ -29,7 +30,7 @@ pub type Cache =
 
 /// Messages that can be sent to the cache actor.
 pub type Message {
-  Check(reply_with: Subject(Int), ip: String)
+  Check(reply_with: Subject(#(Int, Timestamp)), ip: String)
   Consume(reply_with: Subject(Ratelimit), ip: String, tokens: Int)
   Vacuum
   Shutdown
@@ -40,8 +41,7 @@ fn handle_message(message: Message, store: Store) -> actor.Next(Message, Store) 
   case message {
     Check(client, ip) -> {
       let bucket = store |> dict.get(ip) |> option.from_result()
-      let remaining = ratelimit.remaining_tokens(bucket)
-      client |> process.send(remaining)
+      client |> process.send(ratelimit.remaining_tokens(bucket))
       actor.continue(store)
     }
     Consume(client, ip, tokens) -> {
@@ -78,7 +78,7 @@ pub fn new() -> Result(Subject(Message), actor.StartError) {
 }
 
 /// Check remaining tokens for the given IP.
-pub fn check(cache: Cache, ip: String) -> Int {
+pub fn check(cache: Cache, ip: String) -> #(Int, Timestamp) {
   actor.call(cache, Check(_, ip), timeout)
 }
 

@@ -21,14 +21,14 @@ pub fn new() -> Ratelimit {
   )
 }
 
-pub fn remaining_tokens(bucket: Option(Ratelimit)) -> Int {
+pub fn remaining_tokens(bucket: Option(Ratelimit)) -> #(Int, Timestamp) {
   case bucket {
     Some(bucket) ->
       case bucket |> is_expired() {
-        False -> bucket.tokens
-        True -> initial_tokens
+        False -> #(bucket.tokens, bucket.reset)
+        True -> #(initial_tokens, timestamp.from_unix_seconds(0))
       }
-    None -> initial_tokens
+    None -> #(initial_tokens, timestamp.from_unix_seconds(0))
   }
 }
 
