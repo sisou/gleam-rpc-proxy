@@ -1,4 +1,6 @@
 import gleam/erlang/process
+import gleam/int
+import gleam/result
 
 import app/cache
 import app/context.{Context}
@@ -39,7 +41,16 @@ pub fn main() {
   let assert Ok(_) =
     wisp_mist.handler(handler, secret_key_base)
     |> mist.new
-    |> mist.port(8000)
+    |> mist.bind(
+      envoy.get("HOST")
+      |> result.unwrap("localhost"),
+    )
+    |> mist.port(
+      envoy.get("PORT")
+      |> result.map(int.parse)
+      |> result.flatten()
+      |> result.unwrap(8000),
+    )
     |> mist.start_http
 
   // Sleep forever to allow the server to run
