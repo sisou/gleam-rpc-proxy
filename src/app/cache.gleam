@@ -60,9 +60,9 @@ fn handle_message(message: Message, store: Store) -> actor.Next(Message, Store) 
       let after = store |> dict.size()
       let removed = before - after
       io.println(
-        "Vacuumed cache: removed "
+        "VACUUM ratelimiter: removed "
         <> removed |> int.to_string()
-        <> " entries, "
+        <> ", "
         <> after |> int.to_string()
         <> " remaining",
       )

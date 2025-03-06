@@ -16,13 +16,14 @@ pub fn start(ratelimit_cache: Cache) {
 }
 
 /// Vacuum the ratelimit cache periodically.
-///
-/// Tail calls are optimised automatically in Gleam, so we don't need to worry
-/// about stack overflows.
 fn run(ratelimit_cache: Cache) {
+  // Wait first
+  process.sleep(sleep_milliseconds)
+
   ratelimit_cache |> cache.vacuum()
 
-  // Recursively call itself at an interval
-  process.sleep(sleep_milliseconds)
+  // Recursively call itself
+  // Tail calls are optimised automatically in Gleam, so we don't need to worry
+  // about stack overflows.
   run(ratelimit_cache)
 }
