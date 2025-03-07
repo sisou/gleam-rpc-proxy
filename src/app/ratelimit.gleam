@@ -4,37 +4,44 @@ import gleam/order
 import gleam/time/duration
 import gleam/time/timestamp.{type Timestamp}
 
-// Buckets contain 20 tokens and reset every 10 seconds
-const initial_tokens = 20
-
-const duration_seconds = 10
+import app/config.{type RatelimitConfig}
 
 pub type Ratelimit {
   Bucket(tokens: Int, reset: Timestamp)
 }
 
-pub fn new() -> Ratelimit {
+pub fn new(opts: RatelimitConfig) -> Ratelimit {
   Bucket(
-    tokens: initial_tokens,
+    tokens: opts.initial_tokens,
     reset: timestamp.system_time()
-      |> timestamp.add(duration.seconds(duration_seconds)),
+      |> timestamp.add(duration.seconds(opts.duration_seconds)),
   )
 }
 
-pub fn remaining_tokens(bucket: Option(Ratelimit)) -> #(Int, Timestamp) {
+pub fn remaining_tokens(
+  bucket: Option(Ratelimit),
+  opts: RatelimitConfig,
+) -> #(Int, Timestamp) {
   case bucket {
     Some(bucket) ->
       case bucket |> is_expired() {
         False -> #(bucket.tokens, bucket.reset)
-        True -> #(initial_tokens, timestamp.from_unix_seconds(0))
+        True -> #(opts.initial_tokens, timestamp.from_unix_seconds(0))
       }
-    None -> #(initial_tokens, timestamp.from_unix_seconds(0))
+    None -> #(opts.initial_tokens, timestamp.from_unix_seconds(0))
   }
 }
 
 /// Consumes tokens from a bucket. If the tokens are more than are remaining in the bucket, the bucket is set to 0.
 /// There is no carry-over of tokens into a next bucket window.
-pub fn consume(bucket: Option(Ratelimit), tokens: Int) -> Ratelimit {
+pub fn consume(
+  bucket: Option(Ratelimit),
+  tokens: Int,
+  opts: RatelimitConfig,
+) -> Ratelimit {
+  let new = fn() { new(opts) }
+  let consume = fn(bucket, tokens) { consume(bucket, tokens, opts) }
+
   case bucket {
     Some(bucket) ->
       case bucket |> is_expired() {

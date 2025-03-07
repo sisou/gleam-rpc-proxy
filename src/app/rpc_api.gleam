@@ -3,16 +3,14 @@ import gleam/http
 import gleam/http/request
 import gleam/httpc
 import gleam/int
+import gleam/option.{None}
 import gleam/result
 
-import app/context.{type RpcConnection}
+import app/config.{type RpcConfig}
 
 /// Make a request to the PokeAPI.
-pub fn make_request(
-  body: String,
-  rpc_connection: RpcConnection,
-) -> Result(String, String) {
-  let assert Ok(req) = request.to(rpc_connection.url)
+pub fn make_request(body: String, opts: RpcConfig) -> Result(String, String) {
+  let assert Ok(req) = request.to(opts.url)
 
   let req =
     req
@@ -21,13 +19,20 @@ pub fn make_request(
     |> request.set_body(body)
 
   // HTTP Basic Auth
-  let auth = rpc_connection.username <> ":" <> rpc_connection.password
-  let req =
-    req
-    |> request.set_header(
-      "authorization",
-      "Basic " <> bit_array.from_string(auth) |> bit_array.base64_encode(True),
-    )
+  let req = case opts.username, opts.password {
+    None, None -> req
+    _, _ -> {
+      let auth =
+        opts.username |> option.unwrap("")
+        <> ":"
+        <> opts.password |> option.unwrap("")
+      req
+      |> request.set_header(
+        "authorization",
+        "Basic " <> bit_array.from_string(auth) |> bit_array.base64_encode(True),
+      )
+    }
+  }
 
   let resp =
     httpc.send(req)

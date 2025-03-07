@@ -15,6 +15,7 @@ import gleam/option
 import gleam/otp/actor
 import gleam/time/timestamp.{type Timestamp}
 
+import app/config.{type RatelimitConfig}
 import app/ratelimit.{type Ratelimit}
 
 const timeout = 3000
@@ -37,18 +38,23 @@ pub type Message {
 }
 
 /// Handle messages sent to the cache actor.
-fn handle_message(message: Message, store: Store) -> actor.Next(Message, Store) {
+fn handle_message(
+  message: Message,
+  data: #(Store, RatelimitConfig),
+) -> actor.Next(Message, #(Store, RatelimitConfig)) {
+  let #(store, opts) = data
+
   case message {
     Check(client, ip) -> {
       let bucket = store |> dict.get(ip) |> option.from_result()
-      client |> process.send(ratelimit.remaining_tokens(bucket))
-      actor.continue(store)
+      client |> process.send(ratelimit.remaining_tokens(bucket, opts))
+      actor.continue(#(store, opts))
     }
     Consume(client, ip, tokens) -> {
       let bucket = store |> dict.get(ip) |> option.from_result()
-      let bucket = bucket |> ratelimit.consume(tokens)
+      let bucket = bucket |> ratelimit.consume(tokens, opts)
       process.send(client, bucket)
-      actor.continue(store |> dict.insert(ip, bucket))
+      actor.continue(#(store |> dict.insert(ip, bucket), opts))
     }
     Vacuum -> {
       let before = store |> dict.size()
@@ -66,15 +72,16 @@ fn handle_message(message: Message, store: Store) -> actor.Next(Message, Store) 
         <> after |> int.to_string()
         <> " remaining",
       )
-      actor.continue(store)
+      actor.continue(#(store, opts))
     }
     Shutdown -> actor.Stop(process.Normal)
   }
 }
 
 /// Create a new cache.
-pub fn new() -> Result(Subject(Message), actor.StartError) {
-  actor.start(dict.new(), handle_message)
+pub fn new(opts: RatelimitConfig) -> Subject(Message) {
+  let assert Ok(actor) = actor.start(#(dict.new(), opts), handle_message)
+  actor
 }
 
 /// Check remaining tokens for the given IP.

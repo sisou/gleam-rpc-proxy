@@ -4,8 +4,8 @@
 /// based on the path segments. This allows us to keep all of our
 /// application logic in one place, and to easily add new routes.
 ///
-import app/rpc_message.{type RpcRequest, RpcError, RpcRequest, RpcResult}
-import gleam/dynamic/decode
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/float
 import gleam/http
 import gleam/int
@@ -19,9 +19,11 @@ import gleam/string
 import gleam/time/duration
 import gleam/time/timestamp.{type Timestamp}
 
-import app/cache
+import app/cache.{type Cache}
+import app/config.{type RpcConfig, type ServerConfig, AllMethods, SomeMethods}
 import app/context.{type Context}
 import app/rpc_api
+import app/rpc_message.{type RpcRequest, RpcError, RpcRequest, RpcResult}
 
 import wisp.{type Request, type Response}
 
@@ -31,7 +33,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
   case wisp.path_segments(req), req.method {
     // Main handler
     [], http.Post -> proxy(req, ctx)
-    [], http.Get -> landing_page()
+    [], http.Get -> landing_page(ctx.server_config)
     [], _ -> wisp.method_not_allowed(allowed: [http.Get, http.Post])
     // Health check
     ["health"], http.Get -> wisp.ok()
@@ -44,14 +46,14 @@ fn proxy(req: Request, ctx: Context) -> Response {
   use ip <- require_ip(req)
   use body <- wisp.require_string_body(req)
 
-  // Decode request body and check method against allowlist
+  // Decode request body and check ratelimit and method allowlist
   use request <- decode_request_body(body)
-  use <- check_ratelimit(ctx, ip, request)
-  use <- check_method_allowlist(request)
+  use <- check_ratelimit(ctx.ratelimit_cache, ip, request)
+  use <- check_method_allowlist(request, ctx.rpc_config)
 
   // Forward request
   let start_time = timestamp.system_time()
-  case rpc_api.make_request(body, ctx.rpc_connection) {
+  case rpc_api.make_request(body, ctx.rpc_config) {
     Ok(res) -> {
       let elapsed_time =
         start_time |> timestamp.difference(timestamp.system_time())
@@ -60,11 +62,7 @@ fn proxy(req: Request, ctx: Context) -> Response {
         json.parse(res, rpc_message.rpc_response_decoder())
       {
         Ok(RpcResult(result:, ..)) -> {
-          let nimiq_data_decoder = {
-            use data <- decode.field("data", decode.list(decode.dynamic))
-            decode.success(data)
-          }
-          case decode.run(result, nimiq_data_decoder) {
+          case decode.run(result, rpc_result_payload_decoder(ctx.rpc_config)) {
             Ok(array) ->
               { array |> list.length() |> int.to_float() } /. 100.0
               |> float.ceiling()
@@ -131,12 +129,12 @@ fn require_ip(req: Request, next: fn(String) -> Response) -> Response {
 }
 
 fn check_ratelimit(
-  ctx: Context,
+  ratelimit_cache: Cache,
   ip: String,
   request: RpcRequest,
   next: fn() -> Response,
 ) -> Response {
-  let #(remaining_tokens, reset) = cache.check(ctx.ratelimit_cache, ip)
+  let #(remaining_tokens, reset) = cache.check(ratelimit_cache, ip)
   case remaining_tokens > 0 {
     True -> next()
     False ->
@@ -160,27 +158,30 @@ fn decode_request_body(
   }
 }
 
-const allowed_methods = ["getBlockNumber", "getTransactionHashesByAddress"]
-
 fn check_method_allowlist(
   request: RpcRequest,
+  opts: RpcConfig,
   next: fn() -> Response,
 ) -> Response {
-  case allowed_methods |> list.contains(request.method) {
-    True -> next()
-    False ->
-      wisp.bad_request()
-      |> wisp.string_body(rpc_message.encode_rpc_error(
-        request.id,
-        "Method not allowed",
-      ))
+  case opts.method_allowlist {
+    AllMethods -> next()
+    SomeMethods(list) ->
+      case list |> list.contains(request.method) {
+        True -> next()
+        False ->
+          wisp.bad_request()
+          |> wisp.string_body(rpc_message.encode_rpc_error(
+            request.id,
+            "Method not allowed",
+          ))
+      }
   }
 }
 
-fn landing_page() -> Response {
+fn landing_page(opts: ServerConfig) -> Response {
   // TODO: Add a landing page
   wisp.ok()
-  |> wisp.string_body("Nimiq Albatross public RPC")
+  |> wisp.string_body(opts.title <> "\n\n" <> opts.description)
 }
 
 fn add_ratelimit_headers(
@@ -197,4 +198,19 @@ fn add_ratelimit_headers(
       |> pair.first()
       |> int.to_string(),
   )
+}
+
+// Recursively build a decoder for the RPC result payload at the given path
+fn rpc_result_payload_decoder(opts: RpcConfig) -> Decoder(List(Dynamic)) {
+  rpc_result_payload_decoder_impl(opts.payload_path)
+}
+
+fn rpc_result_payload_decoder_impl(path: List(String)) -> Decoder(List(Dynamic)) {
+  case path {
+    [] -> decode.list(decode.dynamic)
+    [field, ..rest] -> {
+      use payload <- decode.field(field, rpc_result_payload_decoder_impl(rest))
+      decode.success(payload)
+    }
+  }
 }
