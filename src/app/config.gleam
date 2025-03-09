@@ -85,3 +85,13 @@ pub fn server_config() -> ServerConfig {
 
   ServerConfig(host:, port:, title:, description:)
 }
+
+pub type SqliteConfig {
+  SqliteConfig(path: String)
+}
+
+pub fn sqlite_config() -> SqliteConfig {
+  let path = envoy.get("SQLITE_PATH") |> result.unwrap(":memory:")
+
+  SqliteConfig(path:)
+}

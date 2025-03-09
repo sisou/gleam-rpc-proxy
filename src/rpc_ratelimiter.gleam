@@ -5,6 +5,7 @@ import app/config
 import app/context.{Context}
 import app/manager
 import app/router
+import app/storage
 
 import dotenv_gleam
 import mist
@@ -18,13 +19,24 @@ pub fn main() {
 
   dotenv_gleam.config()
 
-  // Parse config and create context
+  // Parse configs
   let rpc_config = config.rpc_config()
   let ratelimit_config = config.ratelimit_config()
   let ratelimit_cache = cache.new(ratelimit_config)
   let server_config = config.server_config()
+  let sqlite_config = config.sqlite_config()
+
+  // Start database connection
+  let db = storage.start(sqlite_config)
+
   let context =
-    Context(ratelimit_cache:, rpc_config:, ratelimit_config:, server_config:)
+    Context(
+      ratelimit_cache:,
+      rpc_config:,
+      ratelimit_config:,
+      server_config:,
+      db:,
+    )
 
   // Create a handler using the function capture syntax.
   // This is similar to a partial application in other languages.
