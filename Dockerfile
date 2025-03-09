@@ -1,4 +1,4 @@
-FROM erlang:27-alpine AS build
+FROM erlang:27 AS build
 COPY --from=ghcr.io/gleam-lang/gleam:v1.9.0-erlang-alpine /bin/gleam /bin/gleam
 COPY . /app/
 RUN cd /app && gleam export erlang-shipment
