@@ -24,6 +24,7 @@ import app/config.{type RpcConfig, type ServerConfig, AllMethods, SomeMethods}
 import app/context.{type Context}
 import app/rpc_api
 import app/rpc_message.{type RpcRequest, RpcError, RpcRequest, RpcResult}
+import app/storage
 
 import wisp.{type Request, type Response}
 
@@ -58,50 +59,67 @@ fn proxy(req: Request, ctx: Context) -> Response {
       let elapsed_time =
         start_time |> timestamp.difference(timestamp.system_time())
       // Decode response and make consumed tokens depend on the RPC result length
-      let consumed_tokens = case
+      let #(consumed_tokens, error) = case
         json.parse(res, rpc_message.rpc_response_decoder())
       {
         Ok(RpcResult(result:, ..)) -> {
           case decode.run(result, rpc_result_payload_decoder(ctx.rpc_config)) {
-            Ok(array) ->
-              { array |> list.length() |> int.to_float() } /. 100.0
-              |> float.ceiling()
-              |> float.round()
-            Error(_) -> 1
+            Ok(array) -> {
+              let tokens =
+                { array |> list.length() |> int.to_float() } /. 100.0
+                |> float.ceiling()
+                |> float.round()
+              #(tokens, None)
+            }
+            Error(_) -> #(1, None)
           }
         }
         Ok(RpcError(..)) -> {
-          io.println_error("ERROR: RPC error response: " <> res)
-          1
+          #(1, Some("ERROR: " <> res))
         }
         Error(_) -> {
-          io.println_error("ERROR: Invalid RPC response: " <> res)
-          1
+          #(1, Some("INVALID: " <> res))
         }
       }
 
       let limit = ctx.ratelimit_cache |> cache.consume(ip, consumed_tokens)
 
-      io.println(
-        "PROXY "
-        <> request.method
-        <> ": "
-        <> {
+      let elapsed_ms =
+        {
           elapsed_time
           |> duration.to_seconds()
         }
         *. 1000.0
         |> float.round()
-        |> int.to_string()
+      let byte_size = res |> string.byte_size()
+
+      io.println(
+        "PROXY "
+        <> request.method
+        <> ": "
+        <> elapsed_ms |> int.to_string()
         <> "ms, "
-        <> res |> string.byte_size() |> int.to_string()
+        <> byte_size |> int.to_string()
         <> " B, "
         <> consumed_tokens |> int.to_string()
         <> " token"
         <> case consumed_tokens == 1 {
           True -> ""
           False -> "s"
+        }
+        <> case error {
+          Some(err) -> ", " <> err
+          None -> ""
         },
+      )
+
+      storage.insert_log(
+        ctx.db,
+        request.method,
+        elapsed_ms,
+        byte_size,
+        consumed_tokens,
+        error,
       )
 
       wisp.ok()
