@@ -65,13 +65,18 @@ fn handle_message(
         })
       let after = store |> dict.size()
       let removed = before - after
-      io.println(
-        "VACUUM ratelimiter: removed "
-        <> removed |> int.to_string()
-        <> ", "
-        <> after |> int.to_string()
-        <> " remaining",
-      )
+      case removed, after {
+        // Do not print anything if the store was and is empty
+        0, 0 -> Nil
+        _, _ ->
+          io.println(
+            "VACUUM ratelimiter: removed "
+            <> removed |> int.to_string()
+            <> ", "
+            <> after |> int.to_string()
+            <> " remaining",
+          )
+      }
       actor.continue(#(store, opts))
     }
     Shutdown -> actor.Stop(process.Normal)
