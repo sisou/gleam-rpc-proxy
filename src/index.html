@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nimiq Public JSON-RPC</title>
+    <meta name="description" content="Free rate-limited JSON-RPC access to a Nimiq Proof-of-Stake History node">
+    <link rel="stylesheet" href="https://fonts.xz.style/serve/inter.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@exampledev/new.css@1.1.2/new.min.css">
+</head>
+<body>
+    <header>
+        <h1>Nimiq Public JSON-RPC</h1>
+        <p>Free rate-limited JSON-RPC access to a Nimiq Proof-of-Stake History node</p>
+    </header>
+
+    <h2 id="connecting">
+        <!-- <a href="#connecting">#</a> -->
+        Connecting
+    </h2>
+    <p>Connect to the server at this very URL! <code>https://rpc.nimiqwatch.com</code></p>
+    <p>Websocket connections are not (yet) supported, you need to use individual <code>POST</code> requests.</p>
+
+    <h2 id="rate-limiting">
+        <!-- <a href="#rate-limiting">#</a> -->
+        Rate Limiting
+    </h2>
+    <p>Access is rate-limited by IP. Each IP has an allowance of <code>20 tokens</code> per <code>10 seconds</code> (subject to change).</p>
+    <p>Requests consume tokens based on the length of their result. Single results consume 1 token, list results consume 1 token per started 100 items.</p>
+
+    <h4>For Example</h4>
+    <p>Requesting the current head block produces a single result and consumes 1 token. Requesting a list of transactions for an account consumes 1 token per started 100 items, so if you limit your result to <code>max: 100</code>, it still only consumes 1 token. Not specifying the <code>max</code> parameter can consume up to 5 tokens, as the default for that parameter is 500. If the request returns 305 items, it consumes 4 tokens.</p>
+
+    <h4>Response Headers</h4>
+    <p>Each server response contains headers that tell you how many tokens you have left and when the rate limit resets:</p>
+    <ul>
+        <li><code>x-ratelimit-remaining</code>: number of tokens remaining until reset</li>
+        <li><code>x-ratelimit-reset</code>: the UNIX timestamp of when the tokens reset</li>
+    </ul>
+    <p>When you have no more tokens remaining in the current time window, the server responds with a <code>429 Too Many Requests</code> status code and a properly formatted error response.</p>
+
+    <h2 id="uptime">
+        <!-- <a href="#uptime">#</a> -->
+        Uptime
+    </h2>
+    <p>Uptime is not guaranteed. The server may be restarted or be taken offline at any time without notice.</p>
+
+    <h2 id="methods">
+        <!-- <a href="#methods">#</a> -->
+        Methods
+    </h2>
+    <p>Not all RPC methods are available. Methods that can upload, manage, or sign with stored private keys are disabled.</p>
+
+    <h3>Available methods:</h3>
+    <p>See <a href="https://www.nimiqhub.com/docs/rpc">nimiqhub.com/docs/rpc</a> for documentation of these methods.</p>
+    <ul>
+        <li>
+            <h4>Blockchain</h4>
+            <ul>
+                <li><code>getBlockNumber</code></li>
+                <li><code>getBatchNumber</code></li>
+                <li><code>getEpochNumber</code></li>
+                <li><code>getBlockByHash</code></li>
+                <li><code>getBlockByNumber</code></li>
+                <li><code>getLatestBlock</code></li>
+                <li><code>getSlotAt</code></li>
+                <li><code>getTransactionByHash</code></li>
+                <li><code>getTransactionsByBlockNumber</code></li>
+                <li><code>getInherentsByBlockNumber</code></li>
+                <li><code>getTransactionsByBatchNumber</code></li>
+                <li><code>getInherentsByBatchNumber</code></li>
+                <li><code>getTransactionHashesByAddress</code></li>
+                <li><code>getTransactionsByAddress</code></li>
+                <li><code>getAccountByAddress</code></li>
+                <li><code>getActiveValidators</code></li>
+                <li><code>getCurrentPenalizedSlots</code></li>
+                <li><code>getPreviousPenalizedSlots</code></li>
+                <li><code>getValidatorByAddress</code></li>
+                <li><code>getStakerByAddress</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4>Consensus</h4>
+            <ul>
+                <li><code>isConsensusEstablished</code></li>
+                <li><code>getRawTransactionInfo</code></li>
+                <li><code>sendRawTransaction</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4>Mempool</h4>
+            <ul>
+                <li><code>pushTransaction</code></li>
+                <li><code>mempoolContent</code></li>
+                <li><code>mempool</code></li>
+                <li><code>getMinFeePerByte</code></li>
+                <li><code>getTransactionFromMempool</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4>Network</h4>
+            <ul>
+                <li><code>getPeerCount</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4>Policy</h4>
+            <ul>
+                <li><code>getPolicyConstants</code></li>
+                <li><code>getEpochAt</code></li>
+                <li><code>getEpochIndexAt</code></li>
+                <li><code>getBatchAt</code></li>
+                <li><code>getBatchIndexAt</code></li>
+                <li><code>getElectionBlockAfter</code></li>
+                <li><code>getElectionBlockBefore</code></li>
+                <li><code>getLastElectionBlock</code></li>
+                <li><code>isElectionBlockAt</code></li>
+                <li><code>getMacroBlockAfter</code></li>
+                <li><code>getMacroBlockBefore</code></li>
+                <li><code>getLastMacroBlock</code></li>
+                <li><code>isMacroBlockAt</code></li>
+                <li><code>isMicroBlockAt</code></li>
+                <li><code>getFirstBlockOf</code></li>
+                <li><code>getFirstBlockOfBatch</code></li>
+                <li><code>getElectionBlockOf</code></li>
+                <li><code>getMacroBlockOf</code></li>
+                <li><code>getFirstBatchOfEpoch</code></li>
+                <li><code>getBlockAfterReportingWindow</code></li>
+                <li><code>getBlockAfterJail</code></li>
+                <li><code>getSupplyAt</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4>Wallet</h4>
+            <ul>
+                <li><code>verifySignature</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4>ZKP Component</h4>
+            <ul>
+                <li><code>getZkpState</code></li>
+            </ul>
+        </li>
+    </ul>
+
+    <hr>
+
+    <small>Contact: <a href="mailto:soeren@nimiq.com">soeren@nimiq.com</a></small>
+</body>
+</html>
