@@ -1,6 +1,7 @@
+import gleam/bit_array
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
@@ -81,5 +82,42 @@ pub fn check_method_allowlist(
             "Method not allowed",
           ))
       }
+  }
+}
+
+pub fn basic_auth(
+  req: Request,
+  auth: Option(#(String, String)),
+  next: fn() -> Response,
+) -> Response {
+  case auth {
+    None -> next()
+    Some(#(username, password)) ->
+      case validate_basic_auth(req, #(username, password)) {
+        Ok(_) -> next()
+        Error(_) ->
+          wisp.response(401) |> wisp.set_header("www-authenticate", "Basic")
+      }
+  }
+}
+
+fn validate_basic_auth(
+  req: Request,
+  auth: #(String, String),
+) -> Result(Nil, Nil) {
+  use #(_, value) <- result.try(
+    req.headers |> list.find(fn(pair) { pair.0 == "authorization" }),
+  )
+  case value {
+    "Basic " <> encoded -> {
+      use bits <- result.try(bit_array.base64_decode(encoded))
+      use decoded <- result.try(bits |> bit_array.to_string())
+      use #(user, pass) <- result.try(decoded |> string.split_once(":"))
+      case user == auth.0 && pass == auth.1 {
+        True -> Ok(Nil)
+        False -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
   }
 }

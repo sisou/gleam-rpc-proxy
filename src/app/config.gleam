@@ -1,5 +1,5 @@
 import gleam/int
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
@@ -94,4 +94,25 @@ pub fn sqlite_config() -> SqliteConfig {
   let path = envoy.get("SQLITE_PATH") |> result.unwrap(":memory:")
 
   SqliteConfig(path:)
+}
+
+pub type MetricsConfig {
+  MetricsConfig(enabled: Bool, auth: Option(#(String, String)))
+}
+
+pub fn metrics_config() -> MetricsConfig {
+  let enabled =
+    envoy.get("METRICS_ENABLED")
+    |> result.map(fn(_) { True })
+    |> result.unwrap(False)
+  let username = envoy.get("METRICS_USERNAME") |> option.from_result()
+  let password = envoy.get("METRICS_PASSWORD") |> option.from_result()
+  let auth = case username, password {
+    Some(username), Some(password) -> Some(#(username, password))
+    Some(_), None -> panic as "Missing METRICS_PASSWORD"
+    None, Some(_) -> panic as "Missing METRICS_USERNAME"
+    _, _ -> None
+  }
+
+  MetricsConfig(enabled:, auth:)
 }

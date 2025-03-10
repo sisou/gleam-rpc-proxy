@@ -4,6 +4,7 @@ import app/cache
 import app/config
 import app/context.{Context}
 import app/manager
+import app/prometheus
 import app/router
 import app/storage
 
@@ -25,6 +26,7 @@ pub fn main() {
   let ratelimit_cache = cache.new(ratelimit_config)
   let server_config = config.server_config()
   let sqlite_config = config.sqlite_config()
+  let metrics_config = config.metrics_config()
 
   // Start database connection
   let db = storage.start(sqlite_config)
@@ -35,8 +37,12 @@ pub fn main() {
       rpc_config:,
       ratelimit_config:,
       server_config:,
+      metrics_config:,
       db:,
     )
+
+  // Start Prometheus metrics
+  prometheus.setup()
 
   // Create a handler using the function capture syntax.
   // This is similar to a partial application in other languages.

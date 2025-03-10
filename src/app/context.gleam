@@ -1,5 +1,7 @@
 import app/cache.{type Cache}
-import app/config.{type RatelimitConfig, type RpcConfig, type ServerConfig}
+import app/config.{
+  type MetricsConfig, type RatelimitConfig, type RpcConfig, type ServerConfig,
+}
 
 import sqlight
 
@@ -11,6 +13,7 @@ pub type Context {
     rpc_config: RpcConfig,
     ratelimit_config: RatelimitConfig,
     server_config: ServerConfig,
+    metrics_config: MetricsConfig,
     db: sqlight.Connection,
   )
 }

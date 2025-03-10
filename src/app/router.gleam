@@ -18,9 +18,10 @@ import gleam/time/duration
 import gleam/time/timestamp
 
 import app/cache
-import app/config.{type RpcConfig, type ServerConfig}
+import app/config.{type MetricsConfig, type RpcConfig, type ServerConfig}
 import app/context.{type Context}
 import app/middleware
+import app/prometheus
 import app/rpc_api
 import app/rpc_message.{RpcError, RpcResult}
 import app/storage
@@ -36,6 +37,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
     [], http.Post -> proxy(req, ctx)
     [], http.Get -> landing_page(ctx.server_config)
     [], _ -> wisp.method_not_allowed(allowed: [http.Get, http.Post])
+    ["metrics"], http.Get -> metrics(req, ctx.metrics_config)
     // Health check
     ["health"], http.Get -> wisp.ok()
     // Any non-matching routes
@@ -122,12 +124,36 @@ fn proxy(req: Request, ctx: Context) -> Response {
         error,
       )
 
+      case ctx.metrics_config.enabled {
+        True ->
+          prometheus.count_rpc_request(
+            request.method,
+            elapsed_ms,
+            byte_size,
+            consumed_tokens,
+            error == None,
+          )
+        False -> Nil
+      }
+
       wisp.ok()
       |> wisp.set_header("content-type", "application/json")
       |> utils.add_ratelimit_headers(limit.tokens, limit.reset)
       |> wisp.string_body(res)
     }
     Error(err) -> wisp.internal_server_error() |> wisp.string_body(err)
+  }
+}
+
+fn metrics(req: Request, opts: MetricsConfig) -> Response {
+  case opts.enabled {
+    False -> wisp.not_found()
+    True -> {
+      use <- middleware.basic_auth(req, opts.auth)
+      wisp.ok()
+      |> wisp.set_header("content-type", "text/plain")
+      |> wisp.string_body(prometheus.print())
+    }
   }
 }
 
