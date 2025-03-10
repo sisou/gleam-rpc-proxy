@@ -4,6 +4,7 @@
 /// based on the path segments. This allows us to keep all of our
 /// application logic in one place, and to easily add new routes.
 ///
+import app/utils
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/float
@@ -13,17 +14,16 @@ import gleam/io
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
-import gleam/pair
-import gleam/result
 import gleam/string
 import gleam/time/duration
-import gleam/time/timestamp.{type Timestamp}
+import gleam/time/timestamp
 
-import app/cache.{type Cache}
-import app/config.{type RpcConfig, type ServerConfig, AllMethods, SomeMethods}
+import app/cache
+import app/config.{type RpcConfig, type ServerConfig}
 import app/context.{type Context}
+import app/middleware
 import app/rpc_api
-import app/rpc_message.{type RpcRequest, RpcError, RpcRequest, RpcResult}
+import app/rpc_message.{RpcError, RpcResult}
 import app/storage
 
 import wisp.{type Request, type Response}
@@ -44,13 +44,13 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
 }
 
 fn proxy(req: Request, ctx: Context) -> Response {
-  use ip <- require_ip(req)
+  use ip <- middleware.require_ip(req)
   use body <- wisp.require_string_body(req)
 
   // Decode request body and check ratelimit and method allowlist
-  use request <- decode_request_body(body)
-  use <- check_ratelimit(ctx.ratelimit_cache, ip, request)
-  use <- check_method_allowlist(request, ctx.rpc_config)
+  use request <- middleware.decode_request_body(body)
+  use <- middleware.check_ratelimit(ctx.ratelimit_cache, ip, request)
+  use <- middleware.check_method_allowlist(request, ctx.rpc_config)
 
   // Forward request
   let start_time = timestamp.system_time()
@@ -124,75 +124,9 @@ fn proxy(req: Request, ctx: Context) -> Response {
 
       wisp.ok()
       |> wisp.string_body(res)
-      |> add_ratelimit_headers(limit.tokens, limit.reset)
+      |> utils.add_ratelimit_headers(limit.tokens, limit.reset)
     }
     Error(err) -> wisp.internal_server_error() |> wisp.string_body(err)
-  }
-}
-
-fn require_ip(req: Request, next: fn(String) -> Response) -> Response {
-  let ip =
-    req.headers
-    |> list.find(fn(pair) { pair.0 == "x-forwarded-for" })
-    |> result.map(fn(pair) {
-      let assert Ok(ip) = pair.1 |> string.split(",") |> list.first()
-      Some(ip)
-    })
-    |> result.unwrap(None)
-
-  case ip {
-    Some(ip) -> next(ip)
-    None -> wisp.bad_request() |> wisp.string_body("Missing IP address")
-  }
-}
-
-fn check_ratelimit(
-  ratelimit_cache: Cache,
-  ip: String,
-  request: RpcRequest,
-  next: fn() -> Response,
-) -> Response {
-  let #(remaining_tokens, reset) = cache.check(ratelimit_cache, ip)
-  case remaining_tokens > 0 {
-    True -> next()
-    False ->
-      wisp.response(429)
-      |> wisp.string_body(rpc_message.encode_rpc_error(
-        request.id,
-        "Rate limit exceeded",
-      ))
-      |> add_ratelimit_headers(remaining_tokens, reset)
-  }
-}
-
-fn decode_request_body(
-  body: String,
-  next: fn(RpcRequest) -> Response,
-) -> Response {
-  case json.parse(body, rpc_message.rpc_request_decoder()) {
-    Ok(request) -> next(request)
-    Error(_) ->
-      wisp.bad_request() |> wisp.string_body("Invalid JSON-RPC request")
-  }
-}
-
-fn check_method_allowlist(
-  request: RpcRequest,
-  opts: RpcConfig,
-  next: fn() -> Response,
-) -> Response {
-  case opts.method_allowlist {
-    AllMethods -> next()
-    SomeMethods(list) ->
-      case list |> list.contains(request.method) {
-        True -> next()
-        False ->
-          wisp.bad_request()
-          |> wisp.string_body(rpc_message.encode_rpc_error(
-            request.id,
-            "Method not allowed",
-          ))
-      }
   }
 }
 
@@ -200,22 +134,6 @@ fn landing_page(opts: ServerConfig) -> Response {
   // TODO: Add a landing page
   wisp.ok()
   |> wisp.string_body(opts.title <> "\n\n" <> opts.description)
-}
-
-fn add_ratelimit_headers(
-  res: Response,
-  tokens: Int,
-  reset: Timestamp,
-) -> Response {
-  res
-  |> wisp.set_header("x-ratelimit-remaining", tokens |> int.to_string())
-  |> wisp.set_header(
-    "x-ratelimit-reset",
-    reset
-      |> timestamp.to_unix_seconds_and_nanoseconds()
-      |> pair.first()
-      |> int.to_string(),
-  )
 }
 
 // Recursively build a decoder for the RPC result payload at the given path
