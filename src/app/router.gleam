@@ -4,7 +4,6 @@
 /// based on the path segments. This allows us to keep all of our
 /// application logic in one place, and to easily add new routes.
 ///
-import app/utils
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/float
@@ -25,6 +24,7 @@ import app/middleware
 import app/rpc_api
 import app/rpc_message.{RpcError, RpcResult}
 import app/storage
+import app/utils
 
 import wisp.{type Request, type Response}
 
@@ -123,8 +123,9 @@ fn proxy(req: Request, ctx: Context) -> Response {
       )
 
       wisp.ok()
-      |> wisp.string_body(res)
+      |> wisp.set_header("content-type", "application/json")
       |> utils.add_ratelimit_headers(limit.tokens, limit.reset)
+      |> wisp.string_body(res)
     }
     Error(err) -> wisp.internal_server_error() |> wisp.string_body(err)
   }
