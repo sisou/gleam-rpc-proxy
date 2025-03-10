@@ -182,10 +182,11 @@ fn api_stats(req: Request, ctx: Context) -> Response {
   |> wisp.string_tree_body(body)
 }
 
-fn landing_page(opts: ServerConfig) -> Response {
+fn landing_page(_opts: ServerConfig) -> Response {
   // TODO: Add a landing page
   wisp.ok()
-  |> wisp.string_body(opts.title <> "\n\n" <> opts.description)
+  |> wisp.set_header("content-type", "text/html; charset=utf-8")
+  |> wisp.set_body(wisp.File("src/index.html"))
 }
 
 // Recursively build a decoder for the RPC result payload at the given path
