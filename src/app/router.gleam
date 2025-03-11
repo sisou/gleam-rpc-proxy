@@ -13,6 +13,7 @@ import gleam/io
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/result
 import gleam/string
 import gleam/time/duration
 import gleam/time/timestamp
@@ -38,7 +39,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
     [], http.Get -> landing_page(ctx.server_config)
     [], _ -> wisp.method_not_allowed(allowed: [http.Get, http.Post])
     ["metrics"], http.Get -> metrics(req, ctx.metrics_config)
-    // Health check
+    ["api", "stats"], http.Get -> api_stats(req, ctx)
     ["health"], http.Get -> wisp.ok()
     // Any non-matching routes
     _, _ -> wisp.not_found()
@@ -155,6 +156,20 @@ fn metrics(req: Request, opts: MetricsConfig) -> Response {
       |> wisp.string_body(prometheus.print())
     }
   }
+}
+
+fn api_stats(req: Request, ctx: Context) -> Response {
+  let hours =
+    req
+    |> wisp.get_query()
+    |> list.key_find("hours")
+    |> result.map(fn(value) { int.parse(value) })
+    |> result.flatten()
+    |> result.unwrap(6)
+  let body = storage.print_stats(ctx.db, hours) |> json.to_string_tree()
+  wisp.ok()
+  |> wisp.set_header("content-type", "application/json")
+  |> wisp.string_tree_body(body)
 }
 
 fn landing_page(opts: ServerConfig) -> Response {
