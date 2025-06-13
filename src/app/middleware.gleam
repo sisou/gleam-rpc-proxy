@@ -7,7 +7,7 @@ import gleam/string
 
 import app/cache.{type Cache}
 import app/config.{type RpcConfig, AllMethods, SomeMethods}
-import app/rpc_message.{type RpcRequest, RpcRequest}
+import app/rpc_message.{type RpcRequest}
 import app/utils
 
 import wisp.{type Request, type Response}

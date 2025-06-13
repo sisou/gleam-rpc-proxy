@@ -28,6 +28,7 @@ import app/rpc_message.{RpcError, RpcResult}
 import app/storage
 import app/utils
 
+import cors_builder
 import wisp.{type Request, type Response}
 
 /// Route the request to the appropriate handler based on the path segments.
@@ -35,6 +36,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
   // use <- wisp.log_request(req)
   case wisp.path_segments(req), req.method {
     // Main handler
+    [], http.Options -> proxy(req, ctx)
     [], http.Post -> proxy(req, ctx)
     [], http.Get -> landing_page(ctx.server_config)
     [], _ -> wisp.method_not_allowed(allowed: [http.Get, http.Post])
@@ -47,6 +49,11 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
 }
 
 fn proxy(req: Request, ctx: Context) -> Response {
+  use req <- cors_builder.wisp_middleware(
+    req,
+    cors_builder.new() |> cors_builder.allow_all_origins(),
+  )
+
   use ip <- middleware.require_ip(req)
   use body <- wisp.require_string_body(req)
 

@@ -2,6 +2,7 @@
 # You typically do not need to edit this file
 
 packages = [
+  { name = "cors_builder", version = "2.0.4", build_tools = ["gleam"], requirements = ["gleam_http", "gleam_stdlib", "mist", "wisp"], otp_app = "cors_builder", source = "hex", outer_checksum = "5C8EB12AE3926CBD8ADEC3A7BC90292401D5B1A2F6EC0878C88950C6B0D52EB9" },
   { name = "directories", version = "1.1.0", build_tools = ["gleam"], requirements = ["envoy", "gleam_stdlib", "platform", "simplifile"], otp_app = "directories", source = "hex", outer_checksum = "BDA521A4EB9EE3A7894F0DC863797878E91FF5C7826F7084B2E731E208BDB076" },
   { name = "dotenv_gleam", version = "1.0.7", build_tools = ["gleam"], requirements = ["envoy", "gleam_erlang", "gleam_stdlib", "simplifile"], otp_app = "dotenv_gleam", source = "hex", outer_checksum = "E5C63C326508C4ABF29FB29257A40F9275D63CBE605EEFC807CDCD571E7B2F51" },
   { name = "envoy", version = "1.0.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "envoy", source = "hex", outer_checksum = "95FD059345AA982E89A0B6E2A3BF1CF43E17A7048DCD85B5B65D3B9E4E39D359" },
@@ -35,6 +36,7 @@ packages = [
 ]
 
 [requirements]
+cors_builder = { version = ">= 2.0.4 and < 3.0.0" }
 dotenv_gleam = { version = ">= 1.0.7 and < 2.0.0" }
 envoy = { version = ">= 1.0.2 and < 2.0.0" }
 gleam_erlang = { version = ">= 0.34.0 and < 1.0.0" }
