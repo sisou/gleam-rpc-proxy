@@ -51,7 +51,10 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
 fn proxy(req: Request, ctx: Context) -> Response {
   use req <- cors_builder.wisp_middleware(
     req,
-    cors_builder.new() |> cors_builder.allow_all_origins(),
+    cors_builder.new()
+      |> cors_builder.allow_all_origins()
+      |> cors_builder.allow_method(http.Post)
+      |> cors_builder.allow_header("content-type"),
   )
 
   use ip <- middleware.require_ip(req)
